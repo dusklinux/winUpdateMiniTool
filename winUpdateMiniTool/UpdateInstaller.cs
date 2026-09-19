@@ -15,11 +15,13 @@ namespace winUpdateMiniTool;
 /// </summary>
 internal class UpdateInstaller {
   private readonly Dispatcher mDispatcher = Dispatcher.CurrentDispatcher;
+  private readonly object mProcessLock = new();
   private bool canceled;
   private bool doInstall = true;
   private int errorCount;
   private MultiValueDictionary<string, string> mAllFiles;
   private int mCurrentTask;
+  private Process mCurProcess;
   private Thread mThread;
   private List<MsUpdate> mUpdates;
   private bool rebootRequired;
@@ -77,6 +79,15 @@ internal class UpdateInstaller {
   /// </summary>
   public void CancelOperations() {
     canceled = true;
+    lock (mProcessLock) {
+      try {
+        if (mCurProcess is { HasExited: false })
+          mCurProcess.Kill();
+      }
+      catch (Exception e) {
+        AppLog.Line("Error cancelling the running installer process: {0}", e.Message);
+      }
+    }
   }
 
   /// <summary>
@@ -170,10 +181,10 @@ internal class UpdateInstaller {
           if (!Directory.Exists(path)) // is it already unpacked?
             ZipFile.ExtractToDirectory(file, path);
 
-          var supportedExtensions = "*.msu,*.msi,*.cab,*.exe";
+          string[] supportedExtensions = [".msu", ".msi", ".cab", ".exe"];
           var foundFiles = Directory
               .GetFiles(path, "*.*", SearchOption.AllDirectories)
-              .Where(s => supportedExtensions.Contains(Path.GetExtension(s).ToLower()));
+              .Where(s => supportedExtensions.Contains(Path.GetExtension(s), StringComparer.OrdinalIgnoreCase));
           IEnumerable<string> enumerable = foundFiles as string[] ?? foundFiles.ToArray();
           if (!enumerable.Any())
             throw new FileNotFoundException("No supported update file found in the zip archive");
@@ -212,7 +223,7 @@ internal class UpdateInstaller {
       }
       catch (Exception e) {
         ok = false;
-        Console.WriteLine(@"Error installing update: {0}", e.Message);
+        AppLog.Line("Error installing update: {0}", e.Message);
       }
     }
 
@@ -311,7 +322,7 @@ internal class UpdateInstaller {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(@"Dism error: {0}", e.Message);
+      AppLog.Line("Dism error: {0}", e.Message);
     }
 
     return false;
@@ -344,7 +355,7 @@ internal class UpdateInstaller {
   /// <param name="startInfo">The start information for the process.</param>
   /// <param name="silent">Indicates if the process should run silently.</param>
   /// <returns>The exit code of the process.</returns>
-  private static int ExecTask(ProcessStartInfo startInfo, bool silent = true) {
+  private int ExecTask(ProcessStartInfo startInfo, bool silent = true) {
     startInfo.FileName = Environment.ExpandEnvironmentVariables(startInfo.FileName);
 
     if (silent) {
@@ -357,10 +368,24 @@ internal class UpdateInstaller {
     Process proc = new();
     proc.StartInfo = startInfo;
     proc.EnableRaisingEvents = true;
-    proc.Start();
-    proc.WaitForExit();
 
-    return proc.ExitCode;
+    lock (mProcessLock) {
+      if (canceled) return 0; // canceled before this step even started
+      mCurProcess = proc;
+    }
+
+    try {
+      proc.Start();
+      proc.WaitForExit();
+      return proc.ExitCode;
+    }
+    finally {
+      lock (mProcessLock) {
+        if (mCurProcess == proc)
+          mCurProcess = null;
+      }
+      proc.Dispose();
+    }
   }
 
   /// <summary>
@@ -375,29 +400,35 @@ internal class UpdateInstaller {
     var ok = true;
     var reboot = false;
 
-    try {
-      ProcessStartInfo startInfo =
-          new() {
-            FileName = @"%SystemRoot%\System32\wusa.exe",
-            Arguments =
-                  "/uninstall /kb:"
-                  + kb.Substring(2)
-                  + " /norestart" // /quiet
-          };
-
-      var exitCode = ExecTask(startInfo);
-
-      if (exitCode == 3010 || exitCode == 1641) {
-        reboot = true;
-      }
-      else if (exitCode != 1 && exitCode != 0) {
-        AppLog.Line("Error, exit coded: {0}", exitCode);
-        ok = false; // some error
-      }
-    }
-    catch (Exception e) {
+    if (!kb.StartsWith("KB", StringComparison.OrdinalIgnoreCase) || !int.TryParse(kb.Substring(2), out _)) {
+      AppLog.Line("Cannot uninstall update with no known KB article: {0}", kb);
       ok = false;
-      Console.WriteLine(@"Error removing update: {0}", e.Message);
+    }
+    else {
+      try {
+        ProcessStartInfo startInfo =
+            new() {
+              FileName = @"%SystemRoot%\System32\wusa.exe",
+              Arguments =
+                    "/uninstall /kb:"
+                    + kb.Substring(2)
+                    + " /norestart" // /quiet
+            };
+
+        var exitCode = ExecTask(startInfo);
+
+        if (exitCode == 3010 || exitCode == 1641) {
+          reboot = true;
+        }
+        else if (exitCode != 1 && exitCode != 0) {
+          AppLog.Line("Error, exit coded: {0}", exitCode);
+          ok = false; // some error
+        }
+      }
+      catch (Exception e) {
+        ok = false;
+        AppLog.Line("Error removing update: {0}", e.Message);
+      }
     }
 
     mDispatcher.BeginInvoke(

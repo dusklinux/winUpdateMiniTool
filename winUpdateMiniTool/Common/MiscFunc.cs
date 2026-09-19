@@ -12,6 +12,9 @@ internal class MiscFunc {
   }
 
   public static Color? ParseColor(string input) {
+    if (string.IsNullOrEmpty(input))
+      return null;
+
     ColorConverter c = new();
     if (Regex.IsMatch(input, "^(#[0-9A-Fa-f]{3})$|^(#[0-9A-Fa-f]{6})$"))
       return (Color)c.ConvertFromString(input)!;

@@ -64,7 +64,7 @@ internal abstract class Gpo {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error configuring Automatic Update settings: {0}", e.Message);
     }
   }
 
@@ -78,8 +78,8 @@ internal abstract class Gpo {
     var option = AuOptions.Default;
     try {
       using var subKey = Registry.LocalMachine.OpenSubKey(MWuGpo + @"\AU", false);
-      var valueNo = subKey?.GetValue("NoAutoUpdate");
-      if (valueNo == null || (int)valueNo == 0) {
+      var valueNo = subKey?.GetValue("NoAutoUpdate") as int?;
+      if (valueNo is null or 0) {
         var valueAu = subKey?.GetValue("AUOptions");
         option = valueAu switch {
           2 => AuOptions.Notification,
@@ -110,7 +110,7 @@ internal abstract class Gpo {
   /// <param name="option">The option to set for driver updates.</param>
   public static void ConfigDriverAu(int option) {
     try {
-      var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
+      using var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
       switch (option) {
         case 0: // CheckState.Unchecked:
           subKey.SetValue("ExcludeWUDriversInQualityUpdate", 1);
@@ -124,7 +124,7 @@ internal abstract class Gpo {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error configuring driver Automatic Update settings: {0}", e.Message);
     }
   }
 
@@ -134,7 +134,7 @@ internal abstract class Gpo {
   /// <returns>The current driver Automatic Update option.</returns>
   public static int GetDriverAu() {
     try {
-      var subKey = Registry.LocalMachine.OpenSubKey(MWuGpo, false);
+      using var subKey = Registry.LocalMachine.OpenSubKey(MWuGpo, false);
       var valueDrv = subKey?.GetValue("ExcludeWUDriversInQualityUpdate");
 
       if (valueDrv == null)
@@ -145,7 +145,7 @@ internal abstract class Gpo {
       return 1; // CheckState.Checked
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading driver Automatic Update settings: {0}", e.Message);
     }
 
     return 2;
@@ -157,7 +157,7 @@ internal abstract class Gpo {
   /// <param name="hide">True to hide the page, false to show it.</param>
   public static void HideUpdatePage(bool hide = true) {
     try {
-      var subKey =
+      using var subKey =
           Registry.LocalMachine.CreateSubKey(ExplorerPolicies,
               true);
       if (hide)
@@ -166,7 +166,7 @@ internal abstract class Gpo {
         subKey.DeleteValue("SettingsPageVisibility", false);
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error configuring the Windows Update settings page visibility: {0}", e.Message);
     }
   }
 
@@ -176,13 +176,13 @@ internal abstract class Gpo {
   /// <returns>True if the page is hidden, false otherwise.</returns>
   public static bool IsUpdatePageHidden() {
     try {
-      var subKey =
+      using var subKey =
           Registry.LocalMachine.OpenSubKey(ExplorerPolicies);
-      var value = subKey?.GetValue("SettingsPageVisibility", "").ToString();
-      return value!.Contains("hide:windowsupdate");
+      var value = subKey?.GetValue("SettingsPageVisibility", "")?.ToString();
+      return value != null && value.Contains("hide:windowsupdate");
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading the Windows Update settings page visibility: {0}", e.Message);
     }
 
     return false;
@@ -195,28 +195,28 @@ internal abstract class Gpo {
   public static void BlockMs(bool block = true) {
     try {
       if (block) {
-        var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
+        using var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
         subKey.SetValue("DoNotConnectToWindowsUpdateInternetLocations", 1);
         subKey.SetValue("WUServer", "\" \"");
         subKey.SetValue("WUStatusServer", "\" \"");
         subKey.SetValue("UpdateServiceUrlAlternate", "\" \"");
 
-        var subKey2 = Registry.LocalMachine.CreateSubKey(MWuGpo + @"\AU", true);
+        using var subKey2 = Registry.LocalMachine.CreateSubKey(MWuGpo + @"\AU", true);
         subKey2.SetValue("UseWUServer", 1);
       }
       else {
-        var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
+        using var subKey = Registry.LocalMachine.CreateSubKey(MWuGpo, true);
         subKey.DeleteValue("DoNotConnectToWindowsUpdateInternetLocations", false);
         subKey.DeleteValue("WUServer", false);
         subKey.DeleteValue("WUStatusServer", false);
         subKey.DeleteValue("UpdateServiceUrlAlternate", false);
 
-        var subKey2 = Registry.LocalMachine.CreateSubKey(MWuGpo + @"\AU", true);
+        using var subKey2 = Registry.LocalMachine.CreateSubKey(MWuGpo + @"\AU", true);
         subKey2.DeleteValue("UseWUServer", false);
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error configuring Microsoft Update server blocking: {0}", e.Message);
     }
   }
 
@@ -226,12 +226,12 @@ internal abstract class Gpo {
   /// <returns>The current block status.</returns>
   public static int GetBlockMs() {
     try {
-      var subKey = Registry.LocalMachine.OpenSubKey(MWuGpo, false);
+      using var subKey = Registry.LocalMachine.OpenSubKey(MWuGpo, false);
 
       var valueBlock =
           subKey?.GetValue("DoNotConnectToWindowsUpdateInternetLocations");
 
-      var subKey2 = Registry.LocalMachine.OpenSubKey(MWuGpo + @"\AU", false);
+      using var subKey2 = Registry.LocalMachine.OpenSubKey(MWuGpo + @"\AU", false);
       var valueWsus = subKey2?.GetValue("UseWUServer");
 
       if (valueBlock as int? == 1 && valueWsus as int? == 1)
@@ -241,7 +241,7 @@ internal abstract class Gpo {
       return 2; // CheckState.Indeterminate;
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading Microsoft Update server blocking status: {0}", e.Message);
     }
 
     return 2;
@@ -253,14 +253,14 @@ internal abstract class Gpo {
   /// <param name="disable">True to disable, false to enable.</param>
   public static void SetStoreAu(bool disable) {
     try {
-      var subKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\WindowsStore", true);
+      using var subKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\WindowsStore", true);
       if (disable)
         subKey.SetValue("AutoDownload", 2);
       else
         subKey.DeleteValue("AutoDownload", false);
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error configuring Windows Store Automatic Update settings: {0}", e.Message);
     }
   }
 
@@ -270,12 +270,12 @@ internal abstract class Gpo {
   /// <returns>True if disabled, false otherwise.</returns>
   public static bool GetStoreAu() {
     try {
-      var subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Policies\Microsoft\WindowsStore", false);
+      using var subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Policies\Microsoft\WindowsStore", false);
       var valueBlock = subKey?.GetValue("AutoDownload");
       return valueBlock != null && (int)valueBlock == 2;
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading Windows Store Automatic Update settings: {0}", e.Message);
     }
 
     return false;
@@ -297,7 +297,7 @@ internal abstract class Gpo {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error disabling/enabling Automatic Updates: {0}", e.Message);
     }
   }
 
@@ -307,21 +307,17 @@ internal abstract class Gpo {
   /// <param name="name">The name of the service.</param>
   /// <param name="mode">The start mode to set.</param>
   private static void ConfigSvc(string name, ServiceStartMode mode) {
-    ServiceController svc = new(name);
-    var showErr = false;
+    using ServiceController svc = new(name);
     try {
       if (mode == ServiceStartMode.Disabled && svc.Status == ServiceControllerStatus.Running) svc.Stop();
     }
-    catch {
-      if (showErr)
-        AppLog.Line("Error Stopping Service: {0}", name);
+    catch (Exception e) {
+      AppLog.Line("Error stopping service {0}: {1}", name, e.Message);
     }
 
-    svc.Close();
-
-    var subKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name,
+    using var subKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name,
         RegistryKeyPermissionCheck.ReadWriteSubTree,
-        RegistryRights.SetValue | RegistryRights.ChangePermissions | RegistryRights.TakeOwnership);
+        RegistryRights.ReadPermissions | RegistryRights.SetValue | RegistryRights.ChangePermissions | RegistryRights.TakeOwnership);
     if (subKey == null) {
       AppLog.Line("Service {0} does not exist", name);
       return;
@@ -329,16 +325,21 @@ internal abstract class Gpo {
 
     subKey.SetValue("Start", (int)mode);
 
-    var ac = subKey.GetAccessControl();
-    var
-        rules = ac.GetAccessRules(true, true, typeof(SecurityIdentifier)); // get as SID not string
-    foreach (RegistryAccessRule rule in rules)
-      if (rule.IdentityReference.Value.Equals(FileOps.MF_SID_SYSTEM))
-        ac.RemoveAccessRule(rule);
-    if (mode == ServiceStartMode.Disabled)
-      ac.AddAccessRule(new RegistryAccessRule(new SecurityIdentifier(FileOps.MF_SID_SYSTEM),
-          RegistryRights.FullControl, AccessControlType.Deny));
-    subKey.SetAccessControl(ac);
+    try {
+      var ac = subKey.GetAccessControl();
+      var
+          rules = ac.GetAccessRules(true, true, typeof(SecurityIdentifier)); // get as SID not string
+      foreach (RegistryAccessRule rule in rules)
+        if (rule.IdentityReference.Value.Equals(FileOps.MF_SID_SYSTEM))
+          ac.RemoveAccessRule(rule);
+      if (mode == ServiceStartMode.Disabled)
+        ac.AddAccessRule(new RegistryAccessRule(new SecurityIdentifier(FileOps.MF_SID_SYSTEM),
+            RegistryRights.FullControl, AccessControlType.Deny));
+      subKey.SetAccessControl(ac);
+    }
+    catch (Exception e) {
+      AppLog.Line("Error updating permissions for service {0}: {1}", name, e.Message);
+    }
   }
 
   /// <summary>
@@ -356,12 +357,12 @@ internal abstract class Gpo {
   /// <returns>True if disabled, false otherwise.</returns>
   private static bool IsSvcDisabled(string name) {
     try {
-      var subKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name, false);
+      using var subKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + name, false);
       return subKey == null || MiscFunc.ParseInt(subKey.GetValue("Start", "-1").ToString()) ==
           (int)ServiceStartMode.Disabled;
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading service {0} state: {1}", name, e.Message);
     }
 
     return false;
@@ -373,7 +374,7 @@ internal abstract class Gpo {
   /// <returns>The level of respect.</returns>
   public static Respect GetRespect() {
     try {
-      var subKey =
+      using var subKey =
           Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", false);
       if (subKey == null)
         return Respect.Unknown;
@@ -392,7 +393,7 @@ internal abstract class Gpo {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error determining GPO respect level: {0}", e.Message);
     }
 
     return Respect.Unknown;
@@ -404,7 +405,7 @@ internal abstract class Gpo {
   /// <returns>The Windows version as a float.</returns>
   public static float GetWinVersion() {
     try {
-      var subKey =
+      using var subKey =
           Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", false);
       if (subKey == null)
         return 0.0f;
@@ -420,7 +421,7 @@ internal abstract class Gpo {
       return versionNum;
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error determining Windows version: {0}", e.Message);
     }
 
     return 0.0f;

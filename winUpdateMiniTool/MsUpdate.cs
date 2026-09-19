@@ -1,4 +1,5 @@
 ﻿using System;
+using sergiye.Common;
 using WUApiLib;
 using StringCollection = System.Collections.Specialized.StringCollection;
 
@@ -120,6 +121,9 @@ internal class MsUpdate {
   /// <param name="state">The state of the update.</param>
   public MsUpdate(IUpdate update, UpdateState state) {
     entry = update;
+    // Set State up front so an update is still correctly classified (and not silently
+    // dropped by WuAgent.LoadUpdates on next launch) even if a WUA call below throws.
+    State = state;
 
     try {
       Uuid = update.Identity.UpdateID;
@@ -133,8 +137,6 @@ internal class MsUpdate {
       SupportUrl = update.SupportUrl;
 
       AddUpdates();
-
-      State = state;
 
       Attributes |= update.IsBeta ? (int)UpdateAttr.Beta : 0;
       Attributes |= update.IsDownloaded ? (int)UpdateAttr.Downloaded : 0;
@@ -157,7 +159,7 @@ internal class MsUpdate {
       }
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading update details for {0}: {1}", Title, e.Message);
     }
   }
 
@@ -166,6 +168,8 @@ internal class MsUpdate {
   /// </summary>
   /// <param name="update">The update history entry object.</param>
   public MsUpdate(IUpdateHistoryEntry2 update) {
+    State = UpdateState.History;
+
     try {
       Uuid = update.UpdateIdentity.UpdateID;
 
@@ -176,13 +180,11 @@ internal class MsUpdate {
       SupportUrl = update.SupportUrl;
       ApplicationId = update.ClientApplicationID;
 
-      State = UpdateState.History;
-
       ResultCode = (int)update.ResultCode;
       HResult = update.HResult;
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error reading update history entry details for {0}: {1}", Title, e.Message);
     }
   }
 

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -82,7 +84,7 @@ internal static class Program {
         Console.WriteLine(@"Trying to start with 'runas'...");
         // Restart program and run as admin
         var exeName = Process.GetCurrentProcess().MainModule?.FileName;
-        var arguments = "\"" + string.Join("\" \"", mainArgs) + "\"";
+        var arguments = string.Join(" ", mainArgs.Select(EscapeArg));
         ProcessStartInfo startInfo = new(exeName, arguments) {
           UseShellExecute = true,
           Verb = "runas"
@@ -131,7 +133,7 @@ internal static class Program {
   private static void ExecOnStart() {
     var toolsIni = GetToolsPath() + @"\Tools.ini";
 
-    if (int.Parse(IniReadValue("OnStart", "EnableWuAuServ", "0", toolsIni)) != 0)
+    if (MiscFunc.ParseInt(IniReadValue("OnStart", "EnableWuAuServ", "0", toolsIni)) != 0)
       agent.EnableWuAuServ();
 
     var onStart = IniReadValue("OnStart", "Exec", "", toolsIni);
@@ -149,14 +151,54 @@ internal static class Program {
     if (onClose.Length > 0)
       DoExec(PrepExec(onClose, MiscFunc.ParseInt(IniReadValue("OnClose", "Silent", "1", toolsIni)) != 0), true);
 
-    if (int.Parse(IniReadValue("OnClose", "DisableWuAuServ", "0", toolsIni)) != 0)
+    if (MiscFunc.ParseInt(IniReadValue("OnClose", "DisableWuAuServ", "0", toolsIni)) != 0)
       agent.EnableWuAuServ(false);
 
     // Note: With the UAC bypass the onclose parameter can be used for a local privilege escalation exploit
     if (TestArg("-NoUAC")) return;
     for (var i = 0; i < args.Length; i++)
-      if (args[i].Equals("-onclose", StringComparison.CurrentCultureIgnoreCase))
+      if (args[i].Equals("-onclose", StringComparison.CurrentCultureIgnoreCase) && i + 1 < args.Length)
         DoExec(PrepExec(args[++i]));
+  }
+
+  /// <summary>
+  ///     Quotes and escapes a single argument for a Win32 command line, so an argument containing
+  ///     embedded quotes or backslashes round-trips correctly through re-parsing by the child process.
+  /// </summary>
+  /// <param name="arg">The raw argument value.</param>
+  /// <returns>The escaped, quoted-if-needed argument.</returns>
+  private static string EscapeArg(string arg) {
+    if (arg.Length > 0 && arg.IndexOfAny([' ', '\t', '\n', '\v', '"']) < 0)
+      return arg;
+
+    var sb = new StringBuilder();
+    sb.Append('"');
+    for (var i = 0; i < arg.Length;) {
+      var backslashCount = 0;
+      while (i < arg.Length && arg[i] == '\\') {
+        backslashCount++;
+        i++;
+      }
+
+      if (i == arg.Length) {
+        sb.Append('\\', backslashCount * 2);
+        break;
+      }
+
+      if (arg[i] == '"') {
+        sb.Append('\\', backslashCount * 2 + 1);
+        sb.Append('"');
+      }
+      else {
+        sb.Append('\\', backslashCount);
+        sb.Append(arg[i]);
+      }
+
+      i++;
+    }
+
+    sb.Append('"');
+    return sb.ToString();
   }
 
   /// <summary>
@@ -285,6 +327,8 @@ internal static class Program {
   public static string GetArg(string name) {
     for (var i = 0; i < args.Length; i++)
       if (args[i].Equals(name, StringComparison.CurrentCultureIgnoreCase)) {
+        if (i + 1 >= args.Length)
+          return "";
         var temp = args[i + 1];
         if (temp.Length > 0 && temp[0] != '-')
           return temp;
@@ -407,7 +451,7 @@ internal static class Program {
       AppLog.Line("Trying to SkipUAC ...");
       var action = (IExecAction)task.Definition.Actions[1];
       if (action.Path.Equals(typeof(Program).Assembly.Location, StringComparison.CurrentCultureIgnoreCase)) {
-        var arguments = "\"" + string.Join("\" \"", args) + "\"";
+        var arguments = string.Join(" ", args.Select(EscapeArg));
         var runningTask = task.RunEx(arguments, (int)_TASK_RUN_FLAGS.TASK_RUN_NO_FLAGS, 0, null);
 
         for (var i = 0; i < 5; i++) {

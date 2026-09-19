@@ -62,6 +62,9 @@ internal class WuAgent {
   private WUApiLib.UpdateDownloader mDownloader;
   private IDownloadJob mDownloadJob;
   private IInstallationJob mInstalationJob;
+  // Tracks whether the in-flight WUA installation job is an install or an uninstall, independent of
+  // mCurOperation, which CancelOperations() overwrites with CancelingOperation before the job completes.
+  private AgentOperation mInstalationOperation = AgentOperation.None;
   private IUpdateInstaller mInstaller;
   private bool mIsValid;
   private IUpdateService mOfflineService;
@@ -151,7 +154,7 @@ internal class WuAgent {
       mUpdateServiceManager.RemoveService(serviceId);
     }
     catch (Exception e) {
-      Console.WriteLine(e.Message);
+      AppLog.Line("Error removing update service {0}: {1}", serviceId, e.Message);
     }
   }
 
@@ -283,7 +286,7 @@ internal class WuAgent {
   }
 
   public RetCodes SearchForUpdates(bool download, bool includePotentiallySupersededUpdates = false) {
-    if (mCallback != null)
+    if (mCallback != null || mUpdateDownloader.IsBusy())
       return RetCodes.Busy;
 
     mUpdateSearcher.IncludePotentiallySupersededUpdates = includePotentiallySupersededUpdates;
@@ -471,7 +474,7 @@ internal class WuAgent {
     }
     else {
       MultiValueDictionary<string, string> allFiles = new();
-      foreach (var task in args.Downloads.Where(task => task is not { Failed: true, FileName: not null })) {
+      foreach (var task in args.Downloads.Where(task => !task.Failed)) {
         allFiles.Add(task.Kb, task.Path + @"\" + task.FileName);
       }
 
@@ -602,6 +605,7 @@ internal class WuAgent {
     }
 
     mCurOperation = AgentOperation.InstallingUpdates;
+    mInstalationOperation = mCurOperation;
     OnProgress(-1, 0, 0, 0);
 
     mCallback = new UpdateCallback(this);
@@ -695,7 +699,7 @@ internal class WuAgent {
         OnUpdatesChanged();
       }
       catch (Exception e) {
-        Console.WriteLine(e.Message);
+        AppLog.Line("Error hiding/unhiding update {0}: {1}", upd.Title, e.Message);
       } // Hide update may throw an exception, if the user has hidden the update manually while the search was in progress.
   }
 
@@ -789,12 +793,14 @@ internal class WuAgent {
     mInstalationJob = null;
     mCallback = null;
 
-    IInstallationResult installationResults = null;
+    var wasUninstall = mInstalationOperation == AgentOperation.RemovingUpdates;
+    mInstalationOperation = AgentOperation.None;
+
+    IInstallationResult installationResults;
     try {
-      if (mCurOperation == AgentOperation.InstallingUpdates)
-        installationResults = mInstaller.EndInstall(installationJob);
-      else if (mCurOperation == AgentOperation.RemovingUpdates)
-        installationResults = mInstaller.EndUninstall(installationJob);
+      installationResults = wasUninstall
+          ? mInstaller.EndUninstall(installationJob)
+          : mInstaller.EndInstall(installationJob);
     }
     catch (Exception err) {
       AppLog.Line("(Un)Installing updates failed");
@@ -803,17 +809,17 @@ internal class WuAgent {
       return;
     }
 
-    if (installationResults!.ResultCode == OperationResultCode.orcSucceeded) {
+    if (installationResults.ResultCode == OperationResultCode.orcSucceeded) {
       AppLog.Line("Updates (Un)Installed successfully");
 
       foreach (var update in updates)
-        if (mCurOperation == AgentOperation.InstallingUpdates) {
+        if (!wasUninstall) {
           if (RemoveFrom(MPendingUpdates, update)) {
             update.Attributes |= (int)MsUpdate.UpdateAttr.Installed;
             MInstalledUpdates.Add(update);
           }
         }
-        else if (mCurOperation == AgentOperation.RemovingUpdates) {
+        else {
           if (RemoveFrom(MInstalledUpdates, update)) {
             update.Attributes &= ~(int)MsUpdate.UpdateAttr.Installed;
             MPendingUpdates.Add(update);
@@ -934,7 +940,7 @@ internal class WuAgent {
         update.Date = DateTime.Parse(Program.IniReadValue(update.Kb, "Date", "", iniPath));
       }
       catch (Exception e) {
-        Console.WriteLine(e.Message);
+        AppLog.Line("Error parsing stored date for update {0}: {1}", update.Kb, e.Message);
       }
 
       update.Size = MiscFunc.ParseInt(Program.IniReadValue(update.Kb, "Size", "0", iniPath));

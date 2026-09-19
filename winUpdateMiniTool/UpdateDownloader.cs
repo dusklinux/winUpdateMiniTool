@@ -71,7 +71,9 @@ internal class UpdateDownloader {
       mCurTask.Finished += OnFinished;
       if (mCurTask.Start())
         return;
-      // Failed to start this task lets try another one
+      // Failed to start this task; mark it failed so it isn't reported as downloaded, then try the next one
+      download.Failed = true;
+      mDownloads[mCurrentTask] = download;
       mCurrentTask++;
     }
 

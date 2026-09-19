@@ -28,8 +28,10 @@ internal partial class MainForm : Form {
   private bool checkChecks;
   private UpdateLists currentList = UpdateLists.UpdateHistory;
   private bool doUpdate;
+  private bool exiting;
   private bool ignoreChecks;
-  private DateTime lastBalloon = DateTime.MinValue;
+  private DateTime lastOverdueBalloon = DateTime.MinValue;
+  private DateTime lastNewUpdatesBalloon = DateTime.MinValue;
   private DateTime lastCheck = DateTime.MaxValue;
   private string mSearchFilter;
   private bool mSuspendUpdate;
@@ -206,7 +208,7 @@ internal partial class MainForm : Form {
       chkManual.Checked = true;
 
     try {
-      lastCheck = DateTime.Parse(GetConfig("LastCheck"));
+      lastCheck = DateTime.Parse(GetConfig("LastCheck"), CultureInfo.InvariantCulture);
       AppLog.Line("Last Checked for updates: {0}",
           lastCheck.ToString(CultureInfo.CurrentCulture.DateTimeFormat.ShortDatePattern));
     }
@@ -347,8 +349,8 @@ internal partial class MainForm : Form {
           updateNow = true;
         }
         else if (daysDue > GetGraceDays()) {
-          if (lastBalloon < DateTime.Now.AddHours(-4)) {
-            lastBalloon = DateTime.Now;
+          if (lastOverdueBalloon < DateTime.Now.AddHours(-4)) {
+            lastOverdueBalloon = DateTime.Now;
             notifyIcon.ShowBalloonTip(int.MaxValue, "Please Check for Updates",
               $"{Updater.ApplicationTitle} has not been able to check for updates for {daysDue} days. Please check for updates manually and resolve any issues.", ToolTipIcon.Warning);
           }
@@ -356,8 +358,8 @@ internal partial class MainForm : Form {
       }
 
       if (agent.MPendingUpdates.Count > 0)
-        if (lastBalloon < DateTime.Now.AddHours(-4)) {
-          lastBalloon = DateTime.Now;
+        if (lastNewUpdatesBalloon < DateTime.Now.AddHours(-4)) {
+          lastNewUpdatesBalloon = DateTime.Now;
           notifyIcon.ShowBalloonTip(int.MaxValue, "New Updates Found",
               string.Format("{0} has found {1} new update(s):\n{2}\n\nPlease review and install them.", Updater.ApplicationTitle,
                   agent.MPendingUpdates.Count,
@@ -410,7 +412,7 @@ internal partial class MainForm : Form {
   }
 
   private void MainFormClosing(object sender, FormClosingEventArgs e) {
-    if (notifyIcon.Visible && allowShowDisplay) {
+    if (!exiting && notifyIcon.Visible && allowShowDisplay) {
       e.Cancel = true;
       allowShowDisplay = false;
       Hide();
@@ -422,6 +424,7 @@ internal partial class MainForm : Form {
     agent.Progress -= OnProgress;
     agent.UpdatesChanged -= OnUpdates;
     agent.Finished -= OnFinished;
+    AppLog.Logger -= LineLogger;
   }
 
   private void notifyIcon1_MouseDoubleClick(object sender, EventArgs e) {
@@ -701,7 +704,7 @@ internal partial class MainForm : Form {
       Invoke(new EventHandler(menuExit_Click), sender, e);
       return;
     }
-    FormClosing -= MainFormClosing;
+    exiting = true;
     Visible = false;
     notifyIcon.Visible = false;
     notifyIcon.Dispose();
@@ -1237,8 +1240,11 @@ compact.exe /CompactOS:always";
   private void chkNoUAC_CheckedChanged(object sender, EventArgs e) {
     if (mSuspendUpdate)
       return;
-    chkNoUAC.Checked = !chkNoUAC.Checked;
-    Program.SkipUacEnable(chkNoUAC.Checked);
+    var newChecked = !chkNoUAC.Checked;
+    if (Program.SkipUacEnable(newChecked))
+      chkNoUAC.Checked = newChecked;
+    else
+      AppLog.Line("Failed to {0} the UAC skip task.", newChecked ? "enable" : "disable");
   }
 
   private void chkMsUpd_CheckedChanged(object sender, EventArgs e) {
@@ -1510,7 +1516,7 @@ compact.exe /CompactOS:always";
       if (Equals(fontDialog.Font, Font))
         return;
       Font = fontDialog.Font;
-      SetConfig("UIFont", $"{Font.Name};{Font.Size};{(int)Font.Style}");
+      SetConfig("UIFont", string.Format(CultureInfo.InvariantCulture, "{0};{1};{2}", Font.Name, Font.Size, (int)Font.Style));
     }
   }
 
