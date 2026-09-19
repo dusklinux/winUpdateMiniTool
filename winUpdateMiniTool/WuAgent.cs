@@ -292,7 +292,7 @@ internal class WuAgent {
       mCurOperation = AgentOperation.PreparingCheck;
       OnProgress(-1, 0, 0, 0);
 
-      AppLog.Line("downloading wsusscn2.cab");
+      AppLog.Line("Downloading wsusscn2.cab...");
 
       List<UpdateDownloader.Task> downloads = [];
       downloads.Add(new  UpdateDownloader.Task {
@@ -387,7 +387,7 @@ internal class WuAgent {
     List<UpdateDownloader.Task> downloads = [];
     foreach (var update in updates) {
       if (update.Downloads.Count == 0) {
-        AppLog.Line("Error: No Download Url's found for update {0}", update.Title);
+        AppLog.Line("Error: No download URLs found for update {0}", update.Title);
         continue;
       }
 
@@ -430,7 +430,7 @@ internal class WuAgent {
     List<MsUpdate> filteredUpdates = [];
     foreach (var update in updates) {
       if ((update.Attributes & (int)MsUpdate.UpdateAttr.Uninstallable) == 0) {
-        AppLog.Line("Update can not be uninstalled: {0}", update.Title);
+        AppLog.Line("Update cannot be uninstalled: {0}", update.Title);
         continue;
       }
 
@@ -635,7 +635,7 @@ internal class WuAgent {
 
           if (!update.IsUninstallable)
           {
-              AppLog.Line("Update can not be uninstalled: {0}", update.Title);
+              AppLog.Line("Update cannot be uninstalled: {0}", update.Title);
               continue;
           }
           mInstaller.Updates.Add(update);

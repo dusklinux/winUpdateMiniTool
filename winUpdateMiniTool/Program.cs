@@ -42,14 +42,14 @@ internal static class Program {
     }
 
     if (TestArg("-dbg_wait"))
-      MessageBox.Show("Waiting for debugger. (press ok when attached)", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+      MessageBox.Show("Waiting for debugger. (Press OK once attached.)", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     Console.WriteLine(@"Starting...");
 
     WrkPath = appPath = Path.GetDirectoryName(Updater.CurrentFileLocation);
 
     AppLog.Line("{0}, Version v{1}", Updater.ApplicationTitle, Updater.CurrentVersion);
-    AppLog.Line("This Tool is Open Source under the GNU General Public License, Version 3\r\n");
+    AppLog.Line("This tool is open source under the GNU General Public License, Version 3.\r\n");
 
     if (!OSHelper.IsCompatible(false, out var errorMessage, out var fixAction)) {
       if (fixAction != null) {
@@ -93,13 +93,13 @@ internal static class Program {
           return;
         }
         catch {
-          AppLog.Line("Administrator privileges are required in order to install updates.");
+          AppLog.Line("Administrator privileges are required to install updates.");
         }
       }
     }
 
     if (!FileOps.TestWrite(GetIniPath())) {
-      Console.WriteLine(@"Can't write to default working directory.");
+      Console.WriteLine(@"Cannot write to the default working directory.");
 
       var downloadFolder = KnownFolders.GetPath(KnownFolder.Downloads) ??
                            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + @"\Downloads";
@@ -110,7 +110,7 @@ internal static class Program {
           Directory.CreateDirectory(WrkPath);
       }
       catch {
-        MessageBox.Show($"Can't write to working directory: {WrkPath}", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        MessageBox.Show($"Cannot write to working directory: {WrkPath}", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
       }
     }
 
@@ -438,7 +438,7 @@ internal static class Program {
         "-tray\t\tStart in Tray",
             "-onclose [cmd]\tExecute commands when closing",
             "-update\t\tSearch for updates on start",
-            "-console\t\tshow console (for debugging)",
+            "-console\t\tShow console (for debugging)",
             "-help\t\tShow this help message"
     ];
     if (!mConsole) {

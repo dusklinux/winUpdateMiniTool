@@ -55,7 +55,7 @@ internal partial class MainForm : Form {
     if (!OSHelper.IsRunningAsUwp())
       Text = Updater.ApplicationTitle;
 
-    btnWinUpd.Text = string.Format("Windows Update ({0})", 0);
+    btnWinUpd.Text = string.Format("Windows Updates ({0})", 0);
     btnInstalled.Text = string.Format("Installed Updates ({0})", 0);
     btnHidden.Text = string.Format("Hidden Updates ({0})", 0);
     btnHistory.Text = string.Format("Update History ({0})", 0);
@@ -85,7 +85,7 @@ internal partial class MainForm : Form {
     agent.Finished += OnFinished;
 
     if (!agent.IsActive())
-      if (MessageBox.Show("Windows Update Service is not available, try to start it?", Updater.ApplicationTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
+      if (MessageBox.Show("The Windows Update Service is not available. Do you want to start it?", Updater.ApplicationTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) {
         agent.EnableWuAuServ();
         agent.Init();
       }
@@ -349,8 +349,8 @@ internal partial class MainForm : Form {
         else if (daysDue > GetGraceDays()) {
           if (lastBalloon < DateTime.Now.AddHours(-4)) {
             lastBalloon = DateTime.Now;
-            notifyIcon.ShowBalloonTip(int.MaxValue, "Please Check For Updates",
-              $"{Updater.ApplicationTitle} couldn't check for updates for {daysDue} days, please check for updates manually and resolve possible issues", ToolTipIcon.Warning);
+            notifyIcon.ShowBalloonTip(int.MaxValue, "Please Check for Updates",
+              $"{Updater.ApplicationTitle} has not been able to check for updates for {daysDue} days. Please check for updates manually and resolve any issues.", ToolTipIcon.Warning);
           }
         }
       }
@@ -358,8 +358,9 @@ internal partial class MainForm : Form {
       if (agent.MPendingUpdates.Count > 0)
         if (lastBalloon < DateTime.Now.AddHours(-4)) {
           lastBalloon = DateTime.Now;
-          notifyIcon.ShowBalloonTip(int.MaxValue, "New Updates found",
-              string.Format("{0} has found {1} new updates, please review the updates and install them", Updater.ApplicationTitle,
+          notifyIcon.ShowBalloonTip(int.MaxValue, "New Updates Found",
+              string.Format("{0} has found {1} new update(s):\n{2}\n\nPlease review and install them.", Updater.ApplicationTitle,
+                  agent.MPendingUpdates.Count,
                   string.Join(Environment.NewLine, agent.MPendingUpdates.Select(x => $"- {x.Title}"))),
               ToolTipIcon.Info);
         }
@@ -446,7 +447,7 @@ internal partial class MainForm : Form {
   }
 
   private void UpdateCounts() {
-    btnWinUpd.Text = string.Format("Windows Update ({0})", agent.MPendingUpdates.Count);
+    btnWinUpd.Text = string.Format("Windows Updates ({0})", agent.MPendingUpdates.Count);
     btnInstalled.Text = string.Format("Installed Updates ({0})", agent.MInstalledUpdates.Count);
     btnHidden.Text = string.Format("Hidden Updates ({0})", agent.MHiddenUpdates.Count);
     btnHistory.Text = string.Format("Update History ({0})", agent.MUpdateHistory.Count);
@@ -692,7 +693,7 @@ internal partial class MainForm : Form {
     var startInfo = Program.PrepExec(exec, silent);
     startInfo.WorkingDirectory = dir;
     if (!Program.DoExec(startInfo))
-      MessageBox.Show("Failed to start tool", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+      MessageBox.Show("Failed to start the tool.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
   }
 
   private void menuExit_Click(object sender, EventArgs e) {
@@ -848,7 +849,7 @@ compact.exe /CompactOS:always";
 
   private void btnDownload_Click(object sender, EventArgs e) {
     if (!chkManual.Checked && !OSHelper.IsAdministrator()) {
-      MessageBox.Show("Administrator privileges are required in order to download updates using windows update services. Use 'Manual' download instead.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+      MessageBox.Show("Administrator privileges are required to download updates using Windows Update services. Use 'Manual' download instead.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
       return;
     }
 
@@ -862,7 +863,7 @@ compact.exe /CompactOS:always";
 
   private void btnInstall_Click(object sender, EventArgs e) {
     if (!OSHelper.IsAdministrator()) {
-      MessageBox.Show("Administrator privileges are required in order to install updates.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+      MessageBox.Show("Administrator privileges are required to install updates.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
       return;
     }
 
@@ -876,7 +877,7 @@ compact.exe /CompactOS:always";
 
   private void btnUnInstall_Click(object sender, EventArgs e) {
     if (!OSHelper.IsAdministrator()) {
-      MessageBox.Show("Administrator privileges are required in order to remove updates.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+      MessageBox.Show("Administrator privileges are required to remove updates.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
       return;
     }
 
@@ -990,13 +991,13 @@ compact.exe /CompactOS:always";
   private void ShowResult(WuAgent.AgentOperation op, WuAgent.RetCodes ret, bool reboot = false) {
     if (op == WuAgent.AgentOperation.DownloadingUpdates && chkManual.Checked) {
       if (ret == WuAgent.RetCodes.Success) {
-        MessageBox.Show($"Updates downloaded to {agent.DlPath}, ready to be installed by the user.", Updater.ApplicationTitle, MessageBoxButtons.OK,
+        MessageBox.Show($"Updates were downloaded to {agent.DlPath} and are ready to be installed manually.", Updater.ApplicationTitle, MessageBoxButtons.OK,
             MessageBoxIcon.Information);
         return;
       }
 
       if (ret == WuAgent.RetCodes.DownloadFailed) {
-        MessageBox.Show($"Updates downloaded to {agent.DlPath}, some updates failed to download.", Updater.ApplicationTitle, MessageBoxButtons.OK,
+        MessageBox.Show($"Updates were downloaded to {agent.DlPath}, but some updates failed to download.", Updater.ApplicationTitle, MessageBoxButtons.OK,
             MessageBoxIcon.Exclamation);
         return;
       }
@@ -1016,13 +1017,13 @@ compact.exe /CompactOS:always";
           }
           return;
         }
-        MessageBox.Show("Updates successfully installed, however, a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK,
+        MessageBox.Show("Updates were installed successfully, but a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK,
             MessageBoxIcon.Information);
         return;
       }
 
       if (ret == WuAgent.RetCodes.DownloadFailed) {
-        MessageBox.Show("Installation of some Updates has failed, also a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK,
+        MessageBox.Show("Installation of some updates failed, and a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK,
             MessageBoxIcon.Exclamation);
         return;
       }
@@ -1131,7 +1132,7 @@ compact.exe /CompactOS:always";
         var test = Gpo.GetDisableAu();
         Gpo.DisableAu(true);
         if (!test)
-          MessageBox.Show("For the new configuration to fully take effect a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+          MessageBox.Show("For the new configuration to fully take effect, a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
       }
 
       Gpo.ConfigAu(Gpo.AuOptions.Disabled);
@@ -1160,7 +1161,7 @@ compact.exe /CompactOS:always";
       }
       else {
         if (!chkDisableAU.Checked)
-          switch (MessageBox.Show("Your version of Windows does not respect the standard GPO's, to keep automatic Windows updates blocked, update facilitation services must be disabled.", Updater.ApplicationTitle, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning)) {
+          switch (MessageBox.Show("Your version of Windows does not respect the standard GPOs. To keep automatic Windows updates blocked, update facilitation services must also be disabled.", Updater.ApplicationTitle, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning)) {
             case DialogResult.Yes:
               chkDisableAU.Checked = true; // Note: this triggers chkDisableAU_CheckedChanged
               break;
@@ -1196,7 +1197,7 @@ compact.exe /CompactOS:always";
     var test = Gpo.GetDisableAu();
     Gpo.DisableAu(chkDisableAU.Checked);
     if (test != chkDisableAU.Checked)
-      MessageBox.Show("For the new configuration to fully take effect a reboot is required.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+      MessageBox.Show("For the new configuration to fully take effect, a reboot is required.", Updater.ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
   }
 
   private void chkAutoRun_CheckedChanged(object sender, EventArgs e) {

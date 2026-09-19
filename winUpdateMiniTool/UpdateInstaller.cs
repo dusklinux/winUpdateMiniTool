@@ -176,7 +176,7 @@ internal class UpdateInstaller {
               .Where(s => supportedExtensions.Contains(Path.GetExtension(s).ToLower()));
           IEnumerable<string> enumerable = foundFiles as string[] ?? foundFiles.ToArray();
           if (!enumerable.Any())
-            throw new FileNotFoundException("Expected file not found in zip");
+            throw new FileNotFoundException("No supported update file found in the zip archive");
 
           file = enumerable.First();
           ext = Path.GetExtension(file);
@@ -196,7 +196,7 @@ internal class UpdateInstaller {
         else if (ext.Equals(".cab", StringComparison.CurrentCultureIgnoreCase))
           exitCode = InstallCab(file);
         else
-          throw new FileFormatException("Unknown Update format: " + ext);
+          throw new FileFormatException("Unknown update format: " + ext);
 
         if (exitCode == 3010) {
           reboot = true; // reboot required
